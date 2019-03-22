@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,7 +22,7 @@ func (ds *databaseServer) api(w http.ResponseWriter, req *http.Request) {
 	}
 
 	last := req.Form["last"][0]
-	rows, err := ds.db.Query("SELECT first FROM names WHERE last = ?;", last)
+	rows, err := ds.db.Query("SELECT * FROM names WHERE last = ?;", last)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error %s", err), http.StatusBadRequest)
 		return
@@ -29,9 +30,20 @@ func (ds *databaseServer) api(w http.ResponseWriter, req *http.Request) {
 	defer rows.Close()
 
 	if rows.Next() {
-		var first string
-		rows.Scan(&first)
-		fmt.Fprintf(w, "%s first name is %s\n", last, first)
+		var result struct {
+			Last  string
+			First string
+		}
+
+		rows.Scan(&result.Last, &result.First)
+
+		j, err := json.Marshal(&result)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error %s", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Write(j)
 	} else {
 		fmt.Fprintf(w, "%s not found\n", last)
 	}
